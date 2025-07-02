@@ -1,28 +1,67 @@
-import { Commitment, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js"
-import wallet from "../turbin3-wallet.json"
-import { getOrCreateAssociatedTokenAccount, transfer } from "@solana/spl-token";
+import {
+  Commitment,
+  Connection,
+  Keypair,
+  PublicKey,
+  sendAndConfirmTransaction,
+  Transaction,
+} from "@solana/web3.js";
+import wallet from "../turbin3-wallet.json";
+import {
+  createTransferCheckedInstruction,
+  getOrCreateAssociatedTokenAccount,
+} from "@solana/spl-token";
 
-// We're going to import our keypair from the wallet file
 const keypair = Keypair.fromSecretKey(new Uint8Array(wallet));
 
-//Create a Solana devnet connection
 const commitment: Commitment = "confirmed";
 const connection = new Connection("https://api.devnet.solana.com", commitment);
 
-// Mint address
-const mint = new PublicKey("<mint address>");
+const mint = new PublicKey("AtDmZ4pVMjpURNCycRaYLLCsDUF4ZrskVEC4wHHEutoy");
 
-// Recipient address
-const to = new PublicKey("<receiver address>");
+const to = new PublicKey("ExHn7rWHes2EDHtKvrYP8uhEjRkb4uM2WnoK41LHDd3E");
 
 (async () => {
-    try {
-        // Get the token account of the fromWallet address, and if it does not exist, create it
+  try {
+    const fromAta = new PublicKey(
+      "C2CqDhFp72dM46iVWpggbngdejJW2zqiSV6tJWZLhfuF"
+    );
 
-        // Get the token account of the toWallet address, and if it does not exist, create it
+    // token account of the recipient address
+    const toAta = await getOrCreateAssociatedTokenAccount(
+      connection,
+      keypair,
+      mint,
+      to
+    );
 
-        // Transfer the new token to the "toTokenAccount" we just created
-    } catch(e) {
-        console.error(`Oops, something went wrong: ${e}`)
-    }
+    console.log(`recipient ata: ${toAta.address.toBase58()}`);
+
+    const transaction = new Transaction();
+
+    transaction.add(
+      createTransferCheckedInstruction(
+        fromAta,
+        mint,
+        toAta.address,
+        keypair.publicKey,
+        1_000_000,
+        6
+      )
+    );
+
+    transaction.recentBlockhash = (
+      await connection.getLatestBlockhash("confirmed")
+    ).blockhash;
+
+    transaction.feePayer = keypair.publicKey;
+
+    const signature = await sendAndConfirmTransaction(connection, transaction, [
+      keypair,
+    ]);
+
+    console.log(`transaction signature is: ${signature}`);
+  } catch (e) {
+    console.error(`Oops, something went wrong: ${e}`);
+  }
 })();
